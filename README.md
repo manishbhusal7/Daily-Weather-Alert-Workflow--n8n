@@ -10,8 +10,6 @@ This n8n workflow fetches daily weather data for one or multiple cities, determi
    - Set `city` to one or multiple cities separated by commas (e.g., `London, New York, Kathmandu`).  
    - Set `recipientEmail` to the email address that should receive daily updates.  
 
-> **Note:** Avoid hardcoding the API key for security. Use n8n credentials or environment variables instead.  
-
 ---
 
 ## 2. Supabase Details
