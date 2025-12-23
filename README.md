@@ -61,7 +61,7 @@ This n8n workflow fetches daily weather data for one or multiple cities, determi
 ## Screenshots
 
 ### Screenshot 1
-![Daily Weather Workflow - Screenshot 1](./ss1.png)
+![Daily Weather Workflow - Screenshot 1](./ss.png)
 
 ### Screenshot 2
 ![Daily Weather Workflow - Screenshot 2](./ss2.png)
