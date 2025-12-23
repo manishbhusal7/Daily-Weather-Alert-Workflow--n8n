@@ -1,0 +1,306 @@
+{
+  "name": "Daily Weather Alert and Logging System",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtMinute": null
+            },
+            {}
+          ]
+        }
+      },
+      "id": "7dfa3320-041a-4959-b1a1-40de8ede5530",
+      "name": "Daily 8 AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        5296,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "ff0ed927-472f-4a5c-adf1-4fd29f02f5ac",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        5536,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst transformedItems = [];\n\nfor (const item of items) {\n  const weatherData = item.json;\n\n  // Skip if city is missing\n  if (!weatherData.name) continue;\n\n  transformedItems.push({\n    json: {\n      run_at: new Date().toISOString(),\n      city: weatherData.name, // guaranteed non-null\n      temperature: weatherData.main?.temp || 0,\n      feels_like: weatherData.main?.feels_like || 0,\n      temperature_unit: 'C',\n      condition: weatherData.weather?.[0]?.description || 'Unknown',\n      humidity: weatherData.main?.humidity || 0,\n      pressure: weatherData.main?.pressure || 0,\n      wind_speed: weatherData.wind?.speed || 0,\n      visibility: weatherData.visibility || 0,\n      clouds: weatherData.clouds?.all || 0,\n      sunrise: weatherData.sys?.sunrise || 0,\n      sunset: weatherData.sys?.sunset || 0,\n      alert_type: (() => {\n        let alert = \"none\";\n        const temp = weatherData.main?.temp;\n        const cond = weatherData.weather?.[0]?.description?.toLowerCase() || '';\n        if (cond.includes(\"rain\") || cond.includes(\"snow\") || cond.includes(\"drizzle\") || cond.includes(\"storm\") || cond.includes(\"thunder\")) {\n          alert = \"precipitation\";\n        } else if (temp > 32) {\n          alert = \"heat\";\n        } else if (temp < 0) {\n          alert = \"frost\";\n        }\n        return alert;\n      })(),\n      raw_response: weatherData\n    }\n  });\n}\n\nreturn transformedItems;\n"
+      },
+      "id": "4cca6a3c-df9c-4cae-9132-af39c09d29d6",
+      "name": "Transform Weather Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6208,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine weather alert type based on conditions\nconst items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  const condition = item.json.condition || '';\n  const temp = item.json.temperature || 0;\n  \n  let alertType = 'none';\n  \n  // Check for precipitation conditions\n  const conditionLower = condition.toLowerCase();\n  if (conditionLower.includes('rain') || \n      conditionLower.includes('snow') || \n      conditionLower.includes('drizzle') || \n      conditionLower.includes('storm') || \n      conditionLower.includes('thunder')) {\n    alertType = 'precipitation';\n  }\n  // Check for heat conditions\n  else if (temp > 32) {\n    alertType = 'heat';\n  }\n  // Check for frost conditions\n  else if (temp < 0) {\n    alertType = 'frost';\n  }\n  \n  output.push({\n    json: {\n      ...item.json,\n      alert_type: alertType\n    }\n  });\n}\n\nreturn output;"
+      },
+      "id": "50317909-5721-4c9b-85b4-9fbd0c51382e",
+      "name": "Determine Weather Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6432,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build human-readable summary text for all cities\nconst items = $input.all();\nconst outputItems = [];\n\nfor (const item of items) {\n  const city = item.json.city;\n\n  // Skip if city is missing to prevent Supabase NOT NULL errors\n  if (!city) continue;\n\n  const runAt = item.json.run_at || new Date().toISOString();\n  const temperature = item.json.temperature ?? 0;\n  const condition = item.json.condition ?? 'Unknown';\n  const humidity = item.json.humidity ?? 0;\n  const windSpeed = item.json.wind_speed ?? 0;\n  const alertType = item.json.alert_type ?? 'none';\n  \n  // Extract additional metrics from raw_response safely\n  const feelsLike = item.json.raw_response?.main?.feels_like ?? 'N/A';\n  const pressure = item.json.raw_response?.main?.pressure ?? 'N/A';\n  const visibility = item.json.raw_response?.visibility ?? 'N/A';\n  const clouds = item.json.raw_response?.clouds?.all ?? 'N/A';\n  const sunrise = item.json.raw_response?.sys?.sunrise;\n  const sunset = item.json.raw_response?.sys?.sunset;\n  \n  // Format the date\n  const date = new Date(runAt).toLocaleDateString('en-US', {\n    weekday: 'long',\n    year: 'numeric',\n    month: 'long',\n    day: 'numeric'\n  });\n  \n  // Format sunrise and sunset times\n  const sunriseTime = sunrise ? new Date(sunrise * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A';\n  const sunsetTime = sunset ? new Date(sunset * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A';\n  \n  // Build comprehensive summary text for this city\n  const summaryText = `Weather Report for ${city}\nDate: ${date}\n\nCurrent Conditions:\n- Temperature: ${temperature}°C\n- Feels Like: ${feelsLike}°C\n- Condition: ${condition}\n- Humidity: ${humidity}%\n- Wind Speed: ${windSpeed} m/s\n- Pressure: ${pressure} hPa\n- Visibility: ${visibility} meters\n- Clouds: ${clouds}%\n- Sunrise: ${sunriseTime}\n- Sunset: ${sunsetTime}\n- Alert Type: ${alertType}`;\n\n  // Push to output items\n  outputItems.push({\n    json: {\n      ...item.json,\n      summary: summaryText\n    }\n  });\n}\n\n// Return all processed items\nreturn outputItems;\n"
+      },
+      "id": "bdc40cca-e3d8-41b3-b380-26caa6d9fdf7",
+      "name": "Build Summary Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6656,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "weather_logs",
+        "dataToSend": "autoMapInputData"
+      },
+      "id": "6da1ff94-448a-43f5-80be-7503ea862a08",
+      "name": "Save to Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        6880,
+        1232
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "cCVgncb6RpW1wLnd",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "manishbhusal2003@gmail.com",
+        "toEmail": "={{ $('Workflow Configuration').first().json.recipientEmail }}",
+        "subject": "=Daily Weather Report - Multiple Cities - {{ $now.format('yyyy-MM-dd') }}",
+        "emailFormat": "text",
+        "text": "={{ $('Aggregate All Cities').first().json.summary }}",
+        "options": {}
+      },
+      "id": "ce867eb7-f1db-468b-a2bf-176b95e9a9b9",
+      "name": "Send Email Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        7328,
+        1232
+      ],
+      "webhookId": "d9835280-db7a-4a6f-812b-1963c2b7b04f",
+      "credentials": {
+        "smtp": {
+          "id": "avfNPb55do15Avq6",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (items.length === 0) {\n  return [{ json: { summary: 'No weather data available' } }];\n}\n\nconst date = new Date().toLocaleDateString('en-US', {\n  weekday: 'long',\n  year: 'numeric',\n  month: 'long',\n  day: 'numeric'\n});\n\nlet combinedSummary = `Daily Weather Report\\nDate: ${date}\\n\\n`;\ncombinedSummary += '='.repeat(60) + '\\n\\n';\n\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i].json;\n  \n  combinedSummary += `${i + 1}. ${item.city}\\n`;\n  combinedSummary += `-`.repeat(40) + '\\n';\n  combinedSummary += `Temperature: ${item.temperature}°C\\n`;\n  combinedSummary += `Condition: ${item.condition}\\n`;\n  combinedSummary += `Humidity: ${item.humidity}%\\n`;\n  combinedSummary += `Wind Speed: ${item.wind_speed} m/s\\n`;\n  combinedSummary += `Alert Type: ${item.alert_type}\\n\\n`;\n}\n\ncombinedSummary += '='.repeat(60) + '\\n';\ncombinedSummary += `Total Cities: ${items.length}`;\n\n\nreturn [{\n  json: {\n    summary: combinedSummary,\n    cities: items.map(item => item.json),\n    total_cities: items.length,\n    run_at: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "d206be69-d64a-422b-8b04-62e607365d03",
+      "name": "Aggregate All Cities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7104,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cityString = $input.first().json.city || '';\n\nreturn cityString\n  .split(',')\n  .map(c => c.trim())\n  .filter(Boolean)\n  .map(city => ({ json: { city } }));\n"
+      },
+      "id": "7e832ace-d0c7-446c-872b-ca7027c9d8cf",
+      "name": "Split Cities",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5760,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.openweathermap.org/data/2.5/weather?q={{ encodeURIComponent($json.city) }}&appid={{ $('Workflow Configuration').first().json.apiKey }}&units=metric",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "8dfbe9db-d7ca-475e-8e5b-f6a33d664e41",
+      "name": "Fetch Weather Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        5984,
+        1232
+      ]
+    }
+  ],
+  "pinData": {
+    "Workflow Configuration": [
+      {
+        "json": {
+          "timestamp": "2025-12-22T22:28:58.922-06:00",
+          "Readable date": "December 22nd 2025, 10:28:58 pm",
+          "Readable time": "10:28:58 pm",
+          "Day of week": "Monday",
+          "Year": "2025",
+          "Month": "December",
+          "Day of month": "22",
+          "Hour": "22",
+          "Minute": "28",
+          "Second": "58",
+          "Timezone": "America/Chicago (UTC-06:00)",
+          "city": "London, Boston, New York, Chicago, Kathmandu",
+          "apiKey": "",
+          "recipientEmail": "manishbhusal2003@gmail.com"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Daily 8 AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Weather Data": {
+      "main": [
+        [
+          {
+            "node": "Determine Weather Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Weather Alert": {
+      "main": [
+        [
+          {
+            "node": "Build Summary Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Split Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary Text": {
+      "main": [
+        [
+          {
+            "node": "Save to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All Cities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Cities": {
+      "main": [
+        [
+          {
+            "node": "Send Email Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Cities": {
+      "main": [
+        [
+          {
+            "node": "Fetch Weather Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Weather Data": {
+      "main": [
+        [
+          {
+            "node": "Transform Weather Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "d62936e0-e861-431b-8814-888d56c4ecea",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4fd1572b238040f3da2dc9f9eab602a71435509941b04bcb62d793af43b78096"
+  },
+  "id": "drnmeeUUV0VRgaJj",
+  "tags": []
+}
