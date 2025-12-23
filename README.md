@@ -58,3 +58,10 @@ This n8n workflow fetches daily weather data for one or multiple cities, determi
 - Supports multiple cities and additional weather metrics (pressure, visibility, clouds, sunrise/sunset)  
 
 ---
+## Screenshots
+
+### Screenshot 1
+![Daily Weather Workflow - Screenshot 1](./ss1.png)
+
+### Screenshot 2
+![Daily Weather Workflow - Screenshot 2](./ss2.png)
